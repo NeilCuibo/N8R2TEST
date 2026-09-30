@@ -1,18 +1,27 @@
 #include <Arduino.h>
+#include <ArduinoJson.h>
 
-// put function declarations here:
-int myFunction(int, int);
+#include "calibration_store.h"
 
 void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
+  Serial.begin(115200);
+  delay(200);
+
+  if (!calibration_store::begin()) {
+    Serial.println("LittleFS mount failed");
+    return;
+  }
+
+  DynamicJsonDocument calibration(4096);
+  bool created = false;
+  if (!calibration_store::loadOrCreateTestCalibration(calibration, created)) {
+    Serial.println("Calibration JSON load/create failed");
+    return;
+  }
+
+  Serial.println(created ? "Created and saved test calibration JSON"
+                         : "Loaded saved test calibration JSON");
+  Serial.println(calibration_store::kTestFilePath);
 }
 
-void loop() {
-  // put your main code here, to run repeatedly:
-}
-
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
-}
+void loop() {}
