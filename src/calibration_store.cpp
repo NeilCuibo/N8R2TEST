@@ -1,12 +1,46 @@
 #include "calibration_store.h"
 
 #include <Arduino.h>
+#include <FS.h>
 #include <LittleFS.h>
 
 namespace calibration_store {
 namespace {
 constexpr const char* kMagic = "PPC1_REF_V1";
 constexpr size_t kPointCount = 24;
+String gCurrentFilePath;
+String gCurrentDisplayPath;
+bool gInitialized = false;
+
+String buildRandomTestFilePath() {
+  char buffer[32];
+  const uint32_t randomNumber = random(100000000u, 1000000000u);
+  snprintf(buffer, sizeof(buffer), "/cali_%09u.json", randomNumber);
+  return String(buffer);
+}
+
+void removeOldCalibrationFiles() {
+  File root = LittleFS.open("/");
+  if (!root || !root.isDirectory()) {
+    return;
+  }
+
+  while (true) {
+    File entry = root.openNextFile();
+    if (!entry) {
+      break;
+    }
+
+    const String fileName = entry.name();
+    if (!entry.isDirectory() && fileName.startsWith("/cali_") &&
+        fileName.endsWith(".json") && fileName != gCurrentFilePath) {
+      LittleFS.remove(fileName);
+    }
+    entry.close();
+  }
+
+  root.close();
+}
 
 void makeTestCalibration(JsonDocument& document) {
   document.clear();
@@ -94,15 +128,40 @@ bool hasExpectedSchema(const JsonDocument& document) {
 }
 }  // namespace
 
+const char* getCurrentTestFilePath() {
+  return gCurrentFilePath.c_str();
+}
+
+void resetCurrentFile() {
+  gCurrentFilePath = "";
+  gInitialized = false;
+}
+
 bool begin() {
-  return LittleFS.begin(true);
+  if (!LittleFS.begin(true)) {
+    return false;
+  }
+
+  if (!gInitialized || gCurrentFilePath.length() == 0) {
+    gCurrentFilePath = buildRandomTestFilePath();
+    gInitialized = true;
+    removeOldCalibrationFiles();
+  }
+
+  return true;
 }
 
 bool saveTestCalibration() {
+  if (!gInitialized || gCurrentFilePath.length() == 0) {
+    if (!begin()) {
+      return false;
+    }
+  }
+
   DynamicJsonDocument document(4096);
   makeTestCalibration(document);
 
-  File file = LittleFS.open(kTestFilePath, "w");
+  File file = LittleFS.open(gCurrentFilePath.c_str(), "w");
   if (!file) {
     return false;
   }
@@ -114,7 +173,13 @@ bool saveTestCalibration() {
 }
 
 bool loadTestCalibration(JsonDocument& document) {
-  File file = LittleFS.open(kTestFilePath, "r");
+  if (!gInitialized || gCurrentFilePath.length() == 0) {
+    if (!begin()) {
+      return false;
+    }
+  }
+
+  File file = LittleFS.open(gCurrentFilePath.c_str(), "r");
   if (!file) {
     return false;
   }
@@ -125,16 +190,17 @@ bool loadTestCalibration(JsonDocument& document) {
 }
 
 bool loadOrCreateTestCalibration(JsonDocument& document, bool& created) {
-  created = false;
-  if (LittleFS.exists(kTestFilePath)) {
-    return loadTestCalibration(document);
+  created = true;
+  if (!gInitialized || gCurrentFilePath.length() == 0) {
+    if (!begin()) {
+      return false;
+    }
   }
 
   if (!saveTestCalibration()) {
     return false;
   }
 
-  created = true;
   return loadTestCalibration(document);
 }
 

@@ -21,7 +21,14 @@ void setup() {
 
   Serial.println(created ? "Created and saved test calibration JSON"
                          : "Loaded saved test calibration JSON");
-  Serial.println(calibration_store::kTestFilePath);
+  Serial.print("File: ");
+  Serial.println(calibration_store::getCurrentTestFilePath());
 }
 
-void loop() {}
+void loop() {
+  static uint32_t lastTick = 0;
+  if (millis() - lastTick >= 1000) {
+    lastTick = millis();
+    Serial.printf("heartbeat %lu ms\n", lastTick);
+  }
+}
