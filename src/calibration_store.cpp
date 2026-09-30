@@ -19,29 +19,6 @@ String buildRandomTestFilePath() {
   return String(buffer);
 }
 
-void removeOldCalibrationFiles() {
-  File root = LittleFS.open("/");
-  if (!root || !root.isDirectory()) {
-    return;
-  }
-
-  while (true) {
-    File entry = root.openNextFile();
-    if (!entry) {
-      break;
-    }
-
-    const String fileName = entry.name();
-    if (!entry.isDirectory() && fileName.startsWith("/cali_") &&
-        fileName.endsWith(".json") && fileName != gCurrentFilePath) {
-      LittleFS.remove(fileName);
-    }
-    entry.close();
-  }
-
-  root.close();
-}
-
 void makeTestCalibration(JsonDocument& document) {
   document.clear();
   JsonObject root = document.to<JsonObject>();
@@ -143,9 +120,10 @@ bool begin() {
   }
 
   if (!gInitialized || gCurrentFilePath.length() == 0) {
-    gCurrentFilePath = buildRandomTestFilePath();
+    do {
+      gCurrentFilePath = buildRandomTestFilePath();
+    } while (LittleFS.exists(gCurrentFilePath.c_str()));
     gInitialized = true;
-    removeOldCalibrationFiles();
   }
 
   return true;
