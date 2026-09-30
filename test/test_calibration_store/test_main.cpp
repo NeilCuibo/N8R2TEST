@@ -12,7 +12,7 @@ void test_create_save_and_reload_calibration_json() {
   TEST_ASSERT_TRUE(
       calibration_store::loadOrCreateTestCalibration(document, created));
 
-  // Rewriting the dedicated test file makes this test repeatable.
+  // Rewriting the current run's file makes this test repeatable.
   TEST_ASSERT_TRUE(calibration_store::saveTestCalibration());
   TEST_ASSERT_TRUE(calibration_store::loadTestCalibration(document));
 
@@ -36,7 +36,7 @@ void test_create_save_and_reload_calibration_json() {
   TEST_ASSERT_EQUAL_UINT(24,
       document["points"]["flow_mlmin"].as<JsonArrayConst>().size());
 
-  // A second load uses the already-saved file, as it will after a device restart.
+  // A second load reads the already-saved file again.
   DynamicJsonDocument reloaded(4096);
   TEST_ASSERT_TRUE(calibration_store::loadTestCalibration(reloaded));
   TEST_ASSERT_EQUAL_STRING("PPC1_REF_V1", reloaded["magic"] | "");
