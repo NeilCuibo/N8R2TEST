@@ -19,6 +19,43 @@ String buildRandomTestFilePath() {
   return String(buffer);
 }
 
+void dumpCalibrationFileListImpl() {
+  File root = LittleFS.open("/");
+  if (!root || !root.isDirectory()) {
+    Serial.println("LittleFS root is not available");
+    return;
+  }
+
+  bool foundAny = false;
+  Serial.println("All calibration files currently stored in LittleFS:");
+
+  while (true) {
+    File entry = root.openNextFile();
+    if (!entry) {
+      break;
+    }
+
+    String fileName = entry.name();
+    String fullPath = fileName.startsWith("/") ? fileName : "/" + fileName;
+    if (!entry.isDirectory() &&
+        ((fullPath.startsWith("/cali_") && fullPath.endsWith(".json")) ||
+         (fileName.startsWith("cali_") && fileName.endsWith(".json")))) {
+      foundAny = true;
+      Serial.print("  ");
+      Serial.print(fullPath);
+      Serial.print("  size=");
+      Serial.println(entry.size());
+    }
+    entry.close();
+  }
+
+  if (!foundAny) {
+    Serial.println("  <none>");
+  }
+
+  root.close();
+}
+
 void makeTestCalibration(JsonDocument& document) {
   document.clear();
   JsonObject root = document.to<JsonObject>();
@@ -114,8 +151,35 @@ void resetCurrentFile() {
   gInitialized = false;
 }
 
-bool begin() {
-  if (!LittleFS.begin(true)) {
+void printCalibrationFileList() {
+  dumpCalibrationFileListImpl();
+}
+
+bool formatFilesystem() {
+  Serial.println("Formatting LittleFS...");
+  if (!LittleFS.format()) {
+    Serial.println("LittleFS format failed");
+    return false;
+  }
+
+  if (!LittleFS.begin(false)) {
+    Serial.println("LittleFS mount after formatting failed");
+    return false;
+  }
+
+  gCurrentFilePath = "";
+  gInitialized = false;
+  return true;
+}
+
+bool begin(bool forceFormat) {
+  if (forceFormat) {
+    if (!formatFilesystem()) {
+      return false;
+    }
+  }
+
+  if (!LittleFS.begin(false)) {
     return false;
   }
 
@@ -124,6 +188,10 @@ bool begin() {
       gCurrentFilePath = buildRandomTestFilePath();
     } while (LittleFS.exists(gCurrentFilePath.c_str()));
     gInitialized = true;
+    Serial.print("Boot: selecting a new active file -> ");
+    Serial.println(gCurrentFilePath);
+    Serial.println("Current LittleFS root before create:");
+    dumpCalibrationFileListImpl();
   }
 
   return true;
@@ -147,7 +215,16 @@ bool saveTestCalibration() {
   const size_t expectedBytes = measureJson(document);
   const size_t writtenBytes = serializeJson(document, file);
   file.close();
-  return writtenBytes == expectedBytes;
+
+  if (writtenBytes == expectedBytes) {
+    Serial.print("Write OK: ");
+    Serial.println(gCurrentFilePath);
+    Serial.println("Current LittleFS root after save:");
+    dumpCalibrationFileListImpl();
+    return true;
+  }
+
+  return false;
 }
 
 bool loadTestCalibration(JsonDocument& document) {
@@ -179,6 +256,8 @@ bool loadOrCreateTestCalibration(JsonDocument& document, bool& created) {
     return false;
   }
 
+  Serial.print("Verify active file: ");
+  Serial.println(gCurrentFilePath);
   return loadTestCalibration(document);
 }
 

@@ -6,7 +6,9 @@ namespace calibration_store {
 
 const char* getCurrentTestFilePath();
 void resetCurrentFile();
-bool begin();
+void printCalibrationFileList();
+bool begin(bool forceFormat = false);
+bool formatFilesystem();
 bool saveTestCalibration();
 bool loadTestCalibration(JsonDocument& document);
 bool loadOrCreateTestCalibration(JsonDocument& document, bool& created);
